@@ -3,13 +3,19 @@ import exceptions.DuplicateNameException;
 import java.io.Serializable;
 import java.util.ArrayList;
 public class User implements Serializable {
+    private String username;
+    private String password;
+    private String userType;
     private Category preferredCategory;
     private ArrayList<Transaction> transactions;
     private ArrayList<Account> accounts;
     private ArrayList<Budget> budgets;
     private ArrayList<Category> categories;
 
-    public User(Category preferredCategory) {
+    public User(String username, String password, Category preferredCategory) {
+        this.username = username;
+        this.password = password;
+        this.userType = "user";
         this.preferredCategory = preferredCategory;
         this.transactions = new ArrayList<>();
         this.accounts = new ArrayList<>();
@@ -50,6 +56,16 @@ public class User implements Serializable {
         }
         this.transactions.add(transaction);
     }
+    public String getUserType() {
+        return userType;
+    }
+    public void setUserType(String userType) {this.userType = userType;}
+    public String getUsername() {return username;}
+    public void setUsername(String username) {this.username = username;}
+    public String getPassword() {
+        return password;
+    }
+    public void setPassword(String password) {this.password = password;}
     public ArrayList<Account> getAccounts() {
         return accounts;
     }

@@ -14,5 +14,8 @@ public class Budget implements Reportable, Serializable {
         System.out.println("Budget Report: Limit = " + limit + ", Period = " + period);
     }
 
+    public double getLimit() {return limit;}
+    public String getPeriod() {return period;}
+
 }
 

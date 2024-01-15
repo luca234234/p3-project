@@ -1,27 +1,95 @@
 import exceptions.InvalidTransactionException;
 
 import java.io.*;
+import java.sql.SQLException;
 import java.util.Scanner;
 import java.util.*;
 
 public class Main {
-    private static final String DATA_FILE = "finance_tracker_data.dat";
-
+    static int MAX_USERNAME_LENGTH = 50;
+    static int MAX_PASSWORD_LENGTH = 50;
+    static int MAX_USERTYPE_LENGTH = 20;
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         User user = null;
+        boolean exit = false;
 
-        System.out.println("Do you want to load previous data? (yes/no)");
-        String answer = scanner.nextLine();
-        if ("yes".equalsIgnoreCase(answer)) {
-            try {
-                user = DataPersistence.loadUserData(DATA_FILE);
-            } catch (IOException | ClassNotFoundException e) {
-                System.out.println("Error loading data: " + e.getMessage());
-                user = new User(new Category("General"));
+        while (!exit) {
+            System.out.println("Do you have an account? (yes/no)");
+            String answer = scanner.nextLine();
+
+            if ("yes".equalsIgnoreCase(answer)) {
+                boolean loginSuccessful = false;
+                while (!loginSuccessful) {
+                    System.out.println("Enter username:");
+                    String username = scanner.nextLine();
+
+                    if (username.isEmpty() || username.length() > MAX_USERNAME_LENGTH) {
+                        System.out.println("Username must be between 1 and " + MAX_USERNAME_LENGTH + " characters. Please try again.");
+                        continue;
+                    }
+
+                    System.out.println("Enter password:");
+                    String password = scanner.nextLine();
+
+                    if (password.isEmpty() || password.length() > MAX_PASSWORD_LENGTH) {
+                        System.out.println("Password must be between 1 and " + MAX_PASSWORD_LENGTH + " characters. Please try again.");
+                        continue;
+                    }
+                    try {
+                        user = DataPersistence.authenticateUser(username, password);
+                        if (user != null) {
+                            loginSuccessful = true;
+                            break;
+                        } else {
+                            System.out.println("Invalid username or password. Try again? (yes/no)");
+                            if ("no".equalsIgnoreCase(scanner.nextLine())) {
+                                break;
+                            }
+                        }
+                    } catch (IOException | ClassNotFoundException | SQLException e) {
+                        System.out.println("Error during authentication: " + e.getMessage());
+                        break;
+                    }
+                }
+                if (loginSuccessful) {
+                    break;
+                }
+            } else if ("no".equalsIgnoreCase(answer)) {
+                boolean validInput = false;
+                while (!validInput) {
+                    System.out.println("Create a new account:");
+                    System.out.println("Enter new username:");
+                    String newUsername = scanner.nextLine();
+                    try {
+                        if (newUsername.isEmpty() || newUsername.length() > MAX_USERNAME_LENGTH) {
+                            System.out.println("Username must be between 1 and " + MAX_USERNAME_LENGTH + " characters. Please try again.");
+                            continue;
+                        } else if (DataPersistence.usernameExists(newUsername)) {
+                            System.out.println("Username already exists. Please try a different username.");
+                        }
+                    } catch (SQLException e) {
+                        System.out.println("A database error occurred: " + e.getMessage());
+                        continue;
+                    }
+                    System.out.println("Enter new password:");
+                    String newPassword = scanner.nextLine();
+                    if (newPassword.isEmpty() || newPassword.length() > MAX_PASSWORD_LENGTH) {
+                        System.out.println("Password must be between 1 and " + MAX_PASSWORD_LENGTH + " characters. Please try again.");
+                        continue;
+                    }
+                    validInput = true;
+                    user = new User(newUsername, newPassword, new Category("General"));
+                    try {
+                        DataPersistence.saveUserData(user);
+                    } catch (IOException | SQLException e) {
+                        System.out.println("Error saving data: " + e.getMessage());
+                    }
+                }
+                exit = true;
+            } else {
+                System.out.println("Invalid option. Please try again.");
             }
-        } else {
-            user = new User(new Category("General"));
         }
         if (args.length > 0) {
             if ("add".equals(args[0])) {
@@ -31,12 +99,72 @@ public class Main {
                     System.out.println("Error: " + e.getMessage());
                 }
                 try {
-                    DataPersistence.saveUserData(user, DATA_FILE);
-                } catch (IOException e) {
+                    DataPersistence.saveUserData(user);
+                } catch (IOException | SQLException e) {
                     System.out.println("Error saving data: " + e.getMessage());
                 }
             } else if ("summary".equals(args[0])) {
                 summarizeTransactions(user);
+            }
+        }
+        else if ("admin".equalsIgnoreCase(user.getUserType())) {
+            boolean exitAdminMenu = false;
+            while (!exitAdminMenu) {
+                System.out.println("Select action: 1) Manage Users 2) Add Transaction 3) Summary 4) Exit");
+                int action = scanner.nextInt();
+                switch (action) {
+                    case 1:
+                        manageUsers();
+                        break;
+                    case 2:
+                        try {
+                            addTransaction(user);
+                        } catch (InvalidTransactionException e) {
+                            System.out.println("Error: " + e.getMessage());
+                        }
+                        try {
+                            DataPersistence.saveUserData(user);
+                        } catch (IOException | SQLException e) {
+                            System.out.println("Error saving data: " + e.getMessage());
+                        }
+                        break;
+                    case 3:
+                        summarizeTransactions(user);
+                        break;
+                    case 4:
+                        exitAdminMenu = true;
+                        break;
+                    default:
+                        System.out.println("Invalid option. Please try again.");
+                }
+            }
+        } else{
+            boolean exit_menu = false;
+            while (!exit_menu) {
+                System.out.println("Select action: 1) Add Transaction 2) Summary 3) Exit");
+                int action = scanner.nextInt();
+                switch (action) {
+                    case 1:
+                        try {
+                            addTransaction(user);
+                        } catch (InvalidTransactionException e) {
+                            System.out.println("Error: " + e.getMessage());
+                        }
+                        try {
+                            DataPersistence.saveUserData(user);
+                        } catch (IOException | SQLException e) {
+                            System.out.println("Error saving data: " + e.getMessage());
+                        }
+                        break;
+                    case 2:
+                        summarizeTransactions(user);
+                        break;
+                    case 3:
+                        exit_menu = true;
+                        break;
+                    default:
+                        System.out.println("Invalid option. Please try again.");
+                }
             }
         }
     }
@@ -97,20 +225,73 @@ public class Main {
         System.out.println("Total Income: " + totalIncome);
         System.out.println("Total Expenses: " + totalExpenses);
     }
+    private static void manageUsers() {
+        Scanner scanner = new Scanner(System.in);
+        boolean exitUserManagement = false;
 
-    public static void sortTransactionsByDate(ArrayList<Transaction> transactions) {
-        Collections.sort(transactions);
-    }
-    public static void sortAccountsByBalance(ArrayList<Account> accounts) {
-        Collections.sort(accounts);
-    }
-    public static Map<String, List<Transaction>> groupTransactionsByCategory(List<Transaction> transactions) {
-        Map<String, List<Transaction>> groupedTransactions = new HashMap<>();
-        for (Transaction transaction : transactions) {
-            String category = transaction.getCategory().getName();
-
-            groupedTransactions.computeIfAbsent(category, k -> new ArrayList<>()).add(transaction);
+        while (!exitUserManagement) {
+            System.out.println("User Management: 1) List Users 2) Update User 3) Back to Main Menu");
+            int choice = scanner.nextInt();
+            switch (choice) {
+                case 1:
+                    try {
+                        List<String[]> users = DataPersistence.listAllUsers();
+                        for (String[] user : users) {
+                            System.out.println("Username: " + user[0] + ", Type: " + user[1]);
+                        }
+                    } catch (InterruptedException e) {
+                        System.out.println("Error accessing database: " + e.getMessage());
+                    }
+                    break;
+                case 2:
+                    boolean validInput = false;
+                    while (!validInput) {
+                        System.out.println("Enter the old username:");
+                        String oldUsername = scanner.next();
+                        if (oldUsername.isEmpty()|| oldUsername.length() > MAX_USERNAME_LENGTH) {
+                            System.out.println("Username must be between 1 and " + MAX_USERNAME_LENGTH + " characters. Please try again.");
+                            continue;
+                        }
+                        System.out.println("Enter the new username:");
+                        String newUsername = scanner.next();
+                        try {
+                            if (newUsername.isEmpty() || newUsername.length() > MAX_USERNAME_LENGTH) {
+                                System.out.println("Username must be between 1 and " + MAX_USERNAME_LENGTH + " characters. Please try again.");
+                                continue;
+                            } else if (!newUsername.equals(oldUsername) && DataPersistence.usernameExists(newUsername)) {
+                                System.out.println("Username already exists. Please try a different username.");
+                                continue;
+                            }
+                        } catch (SQLException e) {
+                            System.out.println("A database error occurred: " + e.getMessage());
+                        }
+                        System.out.println("Enter the new password:");
+                        String newPassword = scanner.next();
+                        if (newPassword.isEmpty() || newPassword.length() > MAX_PASSWORD_LENGTH) {
+                            System.out.println("Password must be between 1 and " + MAX_PASSWORD_LENGTH + " characters. Please try again.");
+                            continue;
+                        }
+                        System.out.println("Enter the new user type:");
+                        String userType = scanner.next();
+                        if (userType.isEmpty() || userType.length() > MAX_USERTYPE_LENGTH) {
+                            System.out.println("User type must be between 1 and " + MAX_USERTYPE_LENGTH + " characters. Please try again.");
+                            continue;
+                        }
+                        validInput = true;
+                        try {
+                            DataPersistence.updateUserDetails(oldUsername, newUsername, newPassword, userType);
+                            System.out.println("User updated successfully.");
+                        } catch (SQLException e) {
+                            System.out.println("Error updating user: " + e.getMessage());
+                        }
+                    }
+                    break;
+                case 3:
+                    exitUserManagement = true;
+                    break;
+                default:
+                    System.out.println("Invalid option. Please try again.");
+            }
         }
-        return groupedTransactions;
     }
 }

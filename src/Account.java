@@ -24,4 +24,6 @@ public class Account implements FinancialEntity, Comparable<Account>, Serializab
         this.name = name;
     }
 
+    public double getBalance() {return balance;}
+
 }
